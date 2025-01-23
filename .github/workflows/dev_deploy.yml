@@ -1,0 +1,82 @@
+# name: Deploy to Dev
+
+# on:
+#   push:
+#     branches: [ "main" ]
+
+# jobs:
+#   deploy-app:
+
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - uses: actions/checkout@v4
+
+#     - name: Copy .env
+#       run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+
+#     - name: Deploying to server
+#       uses: appleboy/ssh-action@master
+#       with:
+#         host: ${{ secrets.HAI_HOST }}
+#         key: ${{ secrets.HAI_SECRET }}
+#         username: ${{ secrets.HAI_USER }}
+#         script: 'cd odh && chmod +rx deploy_script.sh && ./deploy_script.sh'
+
+name: 🚀 Deploy to cPanel
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: 🎉 Deploy website
+
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository
+    - name: 🚚 Get latest code
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.x'
+
+    # Initiate Takedown...
+    - name: Install dependencies
+      run: |
+        composer install
+        php artisan down
+
+      # run: composer install --no-dev --prefer-dist --optimize-autoloader
+
+    # - name: Create .env file
+    #   run: |
+    #     cp .env.example .env
+    #     echo "APP_KEY=$(php artisan key:generate --show)" >> .env
+      # sed -i 's/^APP_ENV=.*/APP_ENV=production/' .env
+
+    - name: Run migrations
+      env:
+        APP_ENV: local
+      run: php artisan migrate
+
+    - name: Run NPM commands
+      run: |
+        npm ci
+        npm run build
+
+    # Bootup app
+    - name: Reboot the app
+      run: php artisan up
+
+    # sync files via FTP
+    - name: 📂 Sync files via FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.DEV_FTP_SERVER }}
+        username: ${{ secrets.DEV_FTP_USER }}
+        password: ${{ secrets.DEV_FTP_PASS }}
